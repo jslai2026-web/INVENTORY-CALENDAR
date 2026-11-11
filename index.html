@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>JL Inventory Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--navy:#0f2742;--blue:#1d5fa8;--bg:#fff;--card:#f1f4f8;--tx:#222831;--mut:#5b6675;--ok:#1f8a4c;--warn:#b7791f;--bad:#c0392b;--ln:#d5dbe3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#121a24;--card:#1b2633;--tx:#e6ebf1;--mut:#9aa7b6;--ln:#2b394a}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{font:15px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex}
+nav{width:200px;background:var(--navy);color:#fff;padding:14px 8px;flex:none}nav b{display:block;font:700 20px Georgia,serif;padding:4px 10px 14px;letter-spacing:.5px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;color:#c9d6e6;padding:10px;border-radius:6px;font:inherit;cursor:pointer}nav button.on,nav button:hover{background:var(--blue);color:#fff}
+main{flex:1;overflow:auto;padding:18px;min-width:0}h2{margin:0 0 12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}.k{background:var(--card);border-left:4px solid var(--blue);padding:10px 12px;border-radius:4px}.k.warn{border-color:var(--warn)}.k.bad{border-color:var(--bad)}.k.ok{border-color:var(--ok)}.k small{color:var(--mut)}.k div{font-size:24px;font-weight:700}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{padding:7px 9px;border-bottom:1px solid var(--ln);text-align:left;white-space:nowrap}th{background:var(--card);position:sticky;top:0}
+input,select,textarea,button.b{font:inherit;padding:7px 9px;border:1px solid var(--ln);border-radius:5px;background:var(--bg);color:var(--tx)}button.b{background:var(--blue);color:#fff;border-color:var(--blue);cursor:pointer}button.b.g{background:none;color:var(--blue)}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:end}.row label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);gap:2px}
+.tag{padding:2px 8px;border-radius:10px;color:#fff;font-size:12px}.ok{--c:var(--ok)}.tag.ok{background:var(--ok)}.tag.warn{background:var(--warn)}.tag.bad{background:var(--bad)}
+.bar{display:flex;align-items:center;gap:8px;margin:5px 0}.bar i{display:block;height:16px;background:var(--blue);border-radius:3px}.bar span{width:150px;font-size:13px}
+#intro{position:fixed;inset:0;background:#0a1626;z-index:9;display:flex;align-items:center;justify-content:center;flex-direction:column;transition:opacity .6s}
+#intro canvas{width:100%;height:60%}#intro h1{color:#fff;font:600 22px Georgia,serif;letter-spacing:4px;margin:0;opacity:0;transition:opacity 1s}#intro p{color:#8ea3bd;margin:6px 0 0;opacity:0;transition:opacity 1s}#intro .sk{position:absolute;right:16px;top:16px;color:#fff;border-color:#fff}
+.tag.blue{background:var(--blue)}dialog{border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx)}
+@media(max-width:700px){body{flex-direction:column}nav{width:100%;display:flex;overflow-x:auto;padding:6px}nav b{display:none}nav button{width:auto;white-space:nowrap}}
+@media print{nav,.noprint{display:none}main{overflow:visible}body{display:block}}
+</style></head><body>
+<div id="intro"><button class="b g sk" onclick="endIntro()">Skip intro</button><canvas id="cv"></canvas><h1 id="t1">INVENTORY REPORT</h1><p id="t2">Professional Inventory Management &amp; Reporting System</p></div>
+<nav><b>JL Inventory</b><button data-v="dash" class="on">Dashboard</button><button data-v="inv">Inventory Register</button><button data-v="mov">Stock In / Out</button><button data-v="cal">Calendar</button><button data-v="ntf">Notifications <span id="bdg"></span></button><button data-v="rep">Reports</button><button data-v="bak">Backup &amp; Restore</button></nav>
+<main id="m"></main>
+<dialog id="dlg"></dialog>
+<script>
+"use strict";
+// ---------- Intro (JL shatter animation) ----------
+let introDone=false;function endIntro(){if(introDone)return;introDone=true;const i=document.getElementById('intro');i.style.opacity=0;setTimeout(()=>i.remove(),600)}
+(function(){const cv=document.getElementById('cv'),t1=document.getElementById('t1'),t2=document.getElementById('t2');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function reveal(){t1.style.opacity=1;t2.style.opacity=1}
+const W=cv.width=cv.clientWidth*devicePixelRatio,H=cv.height=cv.clientHeight*devicePixelRatio,ctx=cv.getContext('2d');
+const o=document.createElement('canvas');o.width=W;o.height=H;const oc=o.getContext('2d');const fs=Math.min(H*.8,W*.5);
+oc.fillStyle='#fff';oc.font='bold '+fs+'px Georgia,serif';oc.textAlign='center';oc.textBaseline='middle';oc.fillText('JL',W/2,H/2);
+if(reduce){ctx.drawImage(o,0,0);reveal();setTimeout(endIntro,1500);return}
+const d=oc.getImageData(0,0,W,H).data,P=[],step=Math.max(4,Math.round(fs/40));
+for(let y=0;y<H;y+=step)for(let x=0;x<W;x+=step)if(d[(y*W+x)*4+3]>128)P.push({tx:x,ty:y,x:-Math.random()*W*.6-20,y:y,vx:0,vy:0,hit:false});
+const t0=performance.now();let hitX=W*.25;
+(function f(now){const t=(now-t0)/1000;ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';
+for(const p of P){if(t<1.3){p.x+=(W*.0075)*(1+t*2);if(p.x>hitX&&!p.hit){p.hit=true;p.vx=(8+Math.random()*14)*devicePixelRatio;p.vy=(Math.random()-.5)*20*devicePixelRatio}}
+else if(t<2.2){if(p.hit){p.x+=p.vx;p.y+=p.vy;p.vx*=.96;p.vy*=.96}else p.x+=W*.01}
+else{const e=Math.min(1,(t-2.2)/1.2),k=e*e*(3-2*e);p.x+=(p.tx-p.x)*(.06+.1*k);p.y+=(p.ty-p.y)*(.06+.1*k)}
+ctx.fillRect(p.x,p.y,step*.8,step*.8)}
+if(t>3.2)reveal();if(t<4.6&&!introDone)requestAnimationFrame(f);else endIntro()})(t0);})();
+
+// ---------- IndexedDB ----------
+let db;const open=()=>new Promise((r,j)=>{const q=indexedDB.open('jl-inventory',2);q.onupgradeneeded=()=>{for(const s of['items','tx','events','notes'])if(!q.result.objectStoreNames.contains(s))q.result.createObjectStore(s,{keyPath:'id'})};q.onsuccess=()=>{db=q.result;r()};q.onerror=()=>j(q.error)});
+const all=s=>new Promise(r=>{const q=db.transaction(s).objectStore(s).getAll();q.onsuccess=()=>r(q.result)});
+const put=(s,v)=>new Promise(r=>{const t=db.transaction(s,'readwrite');t.objectStore(s).put(v);t.oncomplete=r});
+const clr=s=>new Promise(r=>{const t=db.transaction(s,'readwrite');t.objectStore(s).clear();t.oncomplete=r});
+const uid=p=>p+'-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>(+n||0).toLocaleString(undefined,{style:'currency',currency:'USD'});
+const today=()=>new Date().toISOString().slice(0,10);
+let items=[],txs=[],view='dash',q='',events=[],notes=[],cmode='month',ntab='Unread',cd=null;
+const status=i=>i.qty<=0?['Out of stock','bad']:i.qty<=i.min?['Low stock','warn']:['In stock','ok'];
+async function load(){items=await all('items');txs=(await all('tx')).sort((a,b)=>b.ts-a.ts);events=await all('events');notes=await all('notes')}
+const CATS=['General Supplies','Office Supplies','Construction Materials','Engineering Equipment','Tools and Machinery','Electrical Equipment','Plumbing Materials','Water and Wastewater Equipment','Safety Equipment and PPE','Computer and IT Equipment','Spare Parts','Consumables','Other'];
+
+// ---------- Views ----------
+const M=document.getElementById('m');
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.v;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));render()});
+async function render(){await load();({dash,inv,mov,rep,bak,cal,ntf})[view]();badge()}
+function dash(){const val=items.reduce((s,i)=>s+i.qty*i.cost,0),low=items.filter(i=>i.qty>0&&i.qty<=i.min).length,out=items.filter(i=>i.qty<=0).length;
+const bycat={};items.forEach(i=>bycat[i.category]=(bycat[i.category]||0)+i.qty*i.cost);const mx=Math.max(1,...Object.values(bycat));
+const k=(t,v,c,d)=>`<div class="k ${c}"><small>${t}</small><div>${v}</div><small>${d}</small></div>`;
+M.innerHTML=`<h2>Dashboard</h2><div class="kpis">${k('Inventory items',items.length,'','Registered records')}${k('Total quantity',items.reduce((s,i)=>s+i.qty,0).toLocaleString(),'','Across all units')}${k('Inventory value',money(val),'ok','Weighted average cost')}${k('Low stock',low,low?'warn':'ok','At or below minimum')}${k('Out of stock',out,out?'bad':'ok','Quantity zero')}${k('Movements',txs.length,'','All recorded transactions')}</div>
+${sched()}<h3>Value by category</h3>${Object.entries(bycat).map(([c,v])=>`<div class="bar"><span>${esc(c)}</span><i style="width:${v/mx*60}%"></i>${money(v)}</div>`).join('')||'<p>No items yet. Add one in the Inventory Register or import a CSV or Excel file.</p>'}
+<h3>Recent movements</h3>${txTable(txs.slice(0,8))}`}
+function txTable(a){return a.length?`<div class="wrap"><table><tr><th>Ref</th><th>Date</th><th>Type</th><th>Item</th><th>Qty</th><th>Unit cost</th><th>By</th><th>Remarks</th></tr>${a.map(t=>`<tr><td>${esc(t.id)}</td><td>${esc(t.date)}</td><td>${esc(t.type)}</td><td>${esc(t.name)}</td><td>${t.qty}</td><td>${money(t.cost)}</td><td>${esc(t.by)}</td><td>${esc(t.rem)}</td></tr>`).join('')}</table></div>`:'<p>No movements recorded.</p>'}
+function inv(){const f=items.filter(i=>(i.name+i.code+i.category+i.location).toLowerCase().includes(q.toLowerCase()));
+M.innerHTML=`<h2>Inventory Register</h2><div class="row noprint"><button class="b" onclick="itemForm()">Add item</button><label>Import CSV / Excel<input type="file" accept=".csv,.xlsx,.xls" onchange="importFile(this.files[0])"></label><label>Search<input id="s" value="${esc(q)}" oninput="q=this.value;inv();document.getElementById('s').focus()"></label></div>
+<div class="wrap"><table><tr><th>Code</th><th>Name</th><th>Category</th><th>Location</th><th>Unit</th><th>Qty</th><th>Min</th><th>Avg cost</th><th>Value</th><th>Status</th><th></th></tr>${f.map(i=>{const[s,c]=status(i);return`<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.category)}</td><td>${esc(i.location)}</td><td>${esc(i.unit)}</td><td>${i.qty}</td><td>${i.min}</td><td>${money(i.cost)}</td><td>${money(i.qty*i.cost)}</td><td><span class="tag ${c}">${s}</span></td><td><button class="b g" onclick="itemForm('${i.id}')">Edit</button></td></tr>`}).join('')||'<tr><td colspan=11>No items match.</td></tr>'}</table></div>`}
+function itemForm(id){const i=items.find(x=>x.id===id)||{category:CATS[0],unit:'ea',qty:0,min:0,cost:0};const D=document.getElementById('dlg');
+const f=(l,n,t='text',v=i[n])=>`<label>${l}<input name="${n}" type="${t}" value="${esc(v??'')}" ${t=='number'?'step="any" min="0"':''}></label>`;
+D.innerHTML=`<form method="dialog" id="f"><h3>${id?'Edit item':'Add item'}</h3><div class="row">${f('Item code','code')}${f('Item name *','name')}<label>Category<select name="category">${CATS.map(c=>`<option ${c==i.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label>${f('Unit','unit')}${f('Location','location')}${f('Min stock','min','number')}${id?'':f('Opening quantity','qty','number')}${id?'':f('Unit cost','cost','number')}</div><div class="row"><button class="b" value="ok">Save</button><button class="b g" value="x" formnovalidate>Cancel</button></div></form>`;
+D.showModal();D.querySelector('form').onsubmit=async e=>{if(e.submitter.value!='ok')return;const fd=Object.fromEntries(new FormData(e.target));if(!fd.name.trim()){e.preventDefault();return}
+const n={...i,id:i.id||uid('ITM'),code:fd.code,name:fd.name.trim(),category:fd.category,unit:fd.unit,location:fd.location,min:+fd.min||0};
+if(!id){n.qty=Math.max(0,+fd.qty||0);n.cost=Math.max(0,+fd.cost||0)}await put('items',n);
+if(!id&&n.qty>0)await put('tx',{id:uid('TX'),ts:Date.now(),date:today(),type:'Opening',itemId:n.id,name:n.name,qty:n.qty,cost:n.cost,by:'',rem:'Opening balance'});render()}}
+function mov(){M.innerHTML=`<h2>Stock In / Out</h2>${items.length?`<form id="mf" class="row noprint"><label>Type<select name="type"><option>Stock In</option><option>Stock Out</option></select></label><label>Item<select name="itemId">${items.map(i=>`<option value="${i.id}">${esc(i.name)} (${i.qty} ${esc(i.unit)})</option>`).join('')}</select></label><label>Quantity<input name="qty" type="number" step="any" min="0.0001" required></label><label>Unit cost (Stock In)<input name="cost" type="number" step="any" min="0"></label><label>Date<input name="date" type="date" value="${today()}"></label><label>Received / issued by<input name="by"></label><label>Remarks<input name="rem"></label><button class="b">Record movement</button></form><p id="err" style="color:var(--bad)"></p>`:'<p>Add an item in the Inventory Register first.</p>'}${txTable(txs)}`;
+const f=document.getElementById('mf');if(f)f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f)),it=items.find(x=>x.id===d.itemId),qty=+d.qty,err=document.getElementById('err');
+if(!(qty>0)){err.textContent='Enter a quantity greater than zero.';return}
+let cost=it.cost;if(d.type=='Stock In'){const c=d.cost===''?it.cost:+d.cost;cost=c;it.cost=(it.qty*it.cost+qty*c)/(it.qty+qty);it.qty+=qty}
+else{if(qty>it.qty){err.textContent='Cannot issue '+qty+'. Only '+it.qty+' '+it.unit+' on hand.';return}it.qty-=qty}
+await put('items',it);await put('tx',{id:uid('TX'),ts:Date.now(),date:d.date,type:d.type,itemId:it.id,name:it.name,qty,cost,by:d.by,rem:d.rem});render()}}
+function rep(){M.innerHTML=`<h2>Reports</h2><p>Inventory valuation using weighted average cost, generated in this browser.</p><div class="row noprint"><button class="b" onclick="window.print()">Print / Save as PDF</button><button class="b" onclick="xl()">Export Excel</button><button class="b" onclick="word()">Export Word</button></div>
+<h3>Inventory valuation report</h3><p>Prepared ${today()}. Costing method: weighted average.</p><div class="wrap"><table><tr><th>Code</th><th>Item</th><th>Category</th><th>Qty</th><th>Avg cost</th><th>Value</th><th>Status</th></tr>${items.map(i=>`<tr><td>${esc(i.code)}</td><td>${esc(i.name)}</td><td>${esc(i.category)}</td><td>${i.qty}</td><td>${money(i.cost)}</td><td>${money(i.qty*i.cost)}</td><td>${status(i)[0]}</td></tr>`).join('')}<tr><th colspan=5>Grand total</th><th colspan=2>${money(items.reduce((s,i)=>s+i.qty*i.cost,0))}</th></tr></table></div>`}
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function xl(){const w=XLSX.utils.book_new();XLSX.utils.book_append_sheet(w,XLSX.utils.json_to_sheet(items.map(i=>({Code:i.code,Item:i.name,Category:i.category,Location:i.location,Unit:i.unit,Quantity:i.qty,Minimum:i.min,'Average cost':i.cost,Value:i.qty*i.cost,Status:status(i)[0]}))),'Inventory');
+XLSX.utils.book_append_sheet(w,XLSX.utils.json_to_sheet(txs.map(t=>({Ref:t.id,Date:t.date,Type:t.type,Item:t.name,Quantity:t.qty,'Unit cost':t.cost,By:t.by,Remarks:t.rem}))),'Movements');XLSX.writeFile(w,'inventory-report-'+today()+'.xlsx')}
+function word(){const t=document.querySelector('table').outerHTML;save(new Blob(['<html><head><meta charset="utf-8"><title>Inventory Report</title></head><body><h1>Inventory Valuation Report</h1><p>Date: '+today()+'</p>'+t+'</body></html>'],{type:'application/msword'}),'inventory-report-'+today()+'.doc')}
+async function importFile(f){if(!f)return;if(f.size>10e6){alert('File is larger than 10 MB.');return}
+const wb=XLSX.read(await f.arrayBuffer()),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);let n=0;
+for(const r of rows){const g=k=>{const key=Object.keys(r).find(x=>x.toLowerCase().replace(/[^a-z]/g,'')==k);return key?r[key]:''};const name=String(g('name')||g('itemname')).trim();if(!name)continue;
+const it={id:uid('ITM'),code:String(g('code')||g('sku')),name,category:String(g('category')||'Other'),unit:String(g('unit')||'ea'),location:String(g('location')),qty:Math.max(0,+g('quantity')||+g('qty')||0),min:Math.max(0,+g('minimum')||+g('min')||0),cost:Math.max(0,+g('cost')||+g('unitcost')||0)};
+await put('items',it);if(it.qty>0)await put('tx',{id:uid('TX'),ts:Date.now()+n,date:today(),type:'Opening',itemId:it.id,name:it.name,qty:it.qty,cost:it.cost,by:'',rem:'Imported from '+f.name});n++}
+alert(n+' items imported. Columns used: name, code, category, unit, location, quantity, minimum, cost.');render()}
+function bak(){M.innerHTML=`<h2>Backup &amp; Restore</h2><p>All data is stored in this browser using IndexedDB. Clearing browser data deletes it, so save a backup file regularly. Nothing is sent over the network.</p><div class="row"><button class="b" onclick="backup()">Download backup (.json)</button><label>Restore from backup<input type="file" accept=".json" onchange="restore(this.files[0])"></label><button class="b g" onclick="wipe()">Delete all local data</button></div>`}
+function backup(){save(new Blob([JSON.stringify({app:'jl-inventory-report',version:2,created:new Date().toISOString(),items,transactions:txs,events,notes,calSettings:S},null,1)],{type:'application/json'}),'inventory-backup-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json')}
+async function restore(f){if(!f)return;try{const d=JSON.parse(await f.text());if(d.app!=='jl-inventory-report'||!Array.isArray(d.items)||!Array.isArray(d.transactions))throw 0;
+if(!confirm('Restore '+d.items.length+' items and '+d.transactions.length+' transactions? This replaces the current '+items.length+' items.'))return;
+await clr('items');await clr('tx');await clr('events');await clr('notes');for(const i of d.items)await put('items',i);for(const t of d.transactions)await put('tx',t);for(const x of d.events||[])await put('events',x);for(const x of d.notes||[])await put('notes',x);if(d.calSettings&&typeof d.calSettings=='object'){Object.assign(S,{mute:!!d.calSettings.mute,defRem:+d.calSettings.defRem||0,ws:+d.calSettings.ws||0,cats:(d.calSettings.cats||[]).map(String)});saveS()}render()}catch{alert('This file is not a valid inventory backup.')}}
+async function wipe(){if(confirm('Delete all items and transactions from this browser? Download a backup first.')){await clr('items');await clr('tx');await clr('events');await clr('notes');render()}}
+// ---------- Calendar, alarms, notifications ----------
+const ld=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+cd=ld(new Date());
+const pd=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
+const addD=(s,n)=>{const d=pd(s);d.setDate(d.getDate()+n);return ld(d)};
+const S=(()=>{let s={};try{s=JSON.parse(localStorage.getItem('jl-cal'))||{}}catch{}return Object.assign({mute:true,notif:false,defRem:15,ws:0,cats:[]},s)})();
+const saveS=()=>{try{localStorage.setItem('jl-cal',JSON.stringify(S))}catch{}};
+const del=(s,k)=>new Promise(r=>{const t=db.transaction(s,'readwrite');t.objectStore(s).delete(k);t.oncomplete=r});
+const ECATS=['Inventory Inspection','Physical Inventory Count','Equipment Maintenance','Equipment Inspection','Purchase Order Deadline','Expected Material Delivery','Stock Replenishment','Supplier Appointment','Warehouse Inspection','Warranty Expiration','Expiry Date Reminder','Inventory Audit','Reporting Deadline','General Appointment','Other'];
+const allCats=()=>ECATS.concat(S.cats);
+const PAL=['#1d5fa8','#1f8a4c','#b7791f','#8e44ad','#16a0a0','#c0392b','#5d6d7e','#d35400'];
+const cc=c=>PAL[[...String(c)].reduce((a,x)=>a+x.charCodeAt(0),0)%PAL.length];
+const ts=(date,t,allDay)=>{const[a,b,c]=date.split('-').map(Number);const[h,m]=(allDay||!t?'09:00':t).split(':').map(Number);return new Date(a,b-1,c,h,m).getTime()};
+function occs(e,from,to){const r=[],fr=e.repeat||{freq:'none'},n=Math.max(1,+fr.every||1);let d=e.date,i=0;
+while(d<=to&&i<2000){if(fr.until&&d>fr.until)break;if(d>=from)r.push({e,date:d,key:e.id+'@'+d});
+if(!fr.freq||fr.freq=='none')break;i++;const b=pd(e.date);
+if(fr.freq=='daily')b.setDate(b.getDate()+n*i);else if(fr.freq=='weekly')b.setDate(b.getDate()+7*n*i);else if(fr.freq=='monthly')b.setMonth(b.getMonth()+n*i);else b.setFullYear(b.getFullYear()+n*i);d=ld(b)}return r}
+const est=o=>{if(o.e.done?.includes(o.date))return['Completed','ok'];const t=Date.now(),late=o.e.allDay?ts(addD(o.date,1),'00:00'):ts(o.date,o.e.end||o.e.start)<t;if(o.e.allDay?ts(addD(o.date,1),'00:00')<t:late)return['Overdue','bad'];return o.date==ld(new Date())?['Today','warn']:['Scheduled','blue']};
+function row(o){const e=o.e,[s,c]=est(o);return `<tr><td>${esc(o.date)}</td><td>${e.allDay?'All day':esc(e.start||'')}</td><td><span style="color:${cc(e.category)}">●</span> ${esc(e.title)}${e.remind?.length?' 🔔':''}</td><td>${esc(e.category)}</td><td>${esc(e.priority)}</td><td><span class="tag ${c}">${s}</span></td><td class="noprint"><button class="b g" onclick="evForm('${e.id}')">Edit</button><button class="b g" onclick="evDone('${e.id}','${o.date}')">Complete</button><button class="b g" onclick="evPost('${e.id}')">Postpone</button><button class="b g" onclick="evDel('${e.id}')">Delete</button></td></tr>`}
+const evTable=a=>a.length?`<div class="wrap"><table><tr><th>Date</th><th>Time</th><th>Event</th><th>Category</th><th>Priority</th><th>Status</th><th></th></tr>${a.map(row).join('')}</table></div>`:'<p>No events in this range.</p>';
+function go(v){view=v;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));render()}
+async function evDone(id,d){const e=events.find(x=>x.id==id);if(!e)return;(e.done??=[]).push(d);await put('events',e);for(const n of notes)if(n.evId==id&&n.date==d&&n.state!='done'){n.state='done';await put('notes',n)}render()}
+async function evPost(id){const e=events.find(x=>x.id==id),v=prompt('New date (YYYY-MM-DD). For a repeating event this moves the whole series.',e.date);if(!v)return;if(!/^\d{4}-\d\d-\d\d$/.test(v)||isNaN(pd(v))){alert('Enter a valid date as YYYY-MM-DD.');return}e.date=v;await put('events',e);render()}
+async function evDel(id){if(!confirm('Delete this event and all its occurrences?'))return;await del('events',id);render()}
+function nav(n){const d=pd(cd);if(cmode=='month'){d.setDate(1);d.setMonth(d.getMonth()+n)}else if(cmode=='week')d.setDate(d.getDate()+7*n);else if(cmode=='day')d.setDate(d.getDate()+n);cd=ld(d);cal()}
+function cal(){const d0=pd(cd);let from,to,title;
+if(cmode=='month'){const f=new Date(d0.getFullYear(),d0.getMonth(),1);f.setDate(1-((f.getDay()-S.ws+7)%7));from=ld(f);to=addD(from,41);title=d0.toLocaleString(undefined,{month:'long',year:'numeric'})}
+else if(cmode=='week'){const f=new Date(d0);f.setDate(d0.getDate()-((d0.getDay()-S.ws+7)%7));from=ld(f);to=addD(from,6);title='Week of '+from}
+else if(cmode=='day'){from=to=cd;title=cd}
+else{from=ld(new Date());to=addD(from,cmode=='agenda'?90:14);title=cmode=='agenda'?'Agenda, next 90 days':'Upcoming, next 14 days'}
+const os=events.flatMap(e=>occs(e,from,to)).sort((a,b)=>(a.date+(a.e.start||''))<(b.date+(b.e.start||''))?-1:1);let body;
+if(cmode=='month'){const by={};os.forEach(o=>(by[o.date]??=[]).push(o));let h='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--ln)">';
+for(let i=0;i<7;i++)h+=`<div style="background:var(--card);padding:4px;font-weight:600">${new Date(2023,0,1+((i+S.ws)%7)).toLocaleString(undefined,{weekday:'short'})}</div>`;
+for(let i=0;i<42;i++){const dd=addD(from,i),cur=dd.slice(0,7)==cd.slice(0,7),td=dd==ld(new Date()),l=by[dd]||[];
+h+=`<div style="background:var(--bg);min-height:78px;padding:3px;overflow:hidden;${cur?'':'opacity:.5;'}${td?'outline:2px solid var(--blue);outline-offset:-2px':''}"><a href="#" onclick="cd='${dd}';cmode='day';cal();return false" style="font-size:12px">${+dd.slice(8)}</a>${l.slice(0,3).map(o=>`<div onclick="evForm('${o.e.id}')" style="font-size:11px;background:${cc(o.e.category)};color:#fff;border-radius:3px;padding:1px 4px;margin-top:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.e.title)}</div>`).join('')}${l.length>3?'<small>+'+(l.length-3)+' more</small>':''}</div>`}
+body='<div class="wrap">'+h+'</div></div>'}else body=evTable(os);
+M.innerHTML=`<h2>Calendar</h2><div class="row noprint"><button class="b g" onclick="nav(-1)">Previous</button><button class="b g" onclick="cd=ld(new Date());cal()">Today</button><button class="b g" onclick="nav(1)">Next</button>${['month','week','day','agenda','upcoming'].map(v=>`<button class="b ${v==cmode?'':'g'}" onclick="cmode='${v}';cal()">${v[0].toUpperCase()+v.slice(1)}</button>`).join('')}<button class="b" onclick="evForm()">New event</button><button class="b g" onclick="ics()">Export ICS</button><button class="b g" onclick="csvOut()">Export CSV</button><label>Import ICS<input type="file" accept=".ics" onchange="icsIn(this.files[0])"></label></div><h3>${esc(title)}</h3>${body}`}
+function evForm(id){const e=events.find(x=>x.id===id)||{title:'',category:ECATS[0],date:cd,start:'09:00',end:'10:00',priority:'Medium',remind:[S.defRem],repeat:{freq:'none',every:1}};e.repeat=e.repeat||{freq:'none',every:1};const D=document.getElementById('dlg');
+const RM=[[0,'At event time'],[5,'5 min before'],[15,'15 min before'],[30,'30 min before'],[60,'1 hour before'],[1440,'1 day before'],[10080,'1 week before']];
+const f=(l,n,t='text',v=e[n],x='')=>`<label>${l}<input name="${n}" type="${t}" value="${esc(v??'')}" ${x}></label>`;
+D.innerHTML=`<form method="dialog"><h3>${id?'Edit event':'New event'}</h3><div class="row">${f('Title *','title','text',e.title,'required')}<label>Category<select name="category">${allCats().map(c=>`<option ${c==e.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label>${f('Date *','date','date',e.date,'required')}${f('Start','start','time')}${f('End','end','time')}<label>All day<input type="checkbox" name="allDay" ${e.allDay?'checked':''}></label>${f('Location','location')}${f('Responsible person','person')}<label>Priority<select name="priority">${['Low','Medium','High','Urgent'].map(p=>`<option ${p==e.priority?'selected':''}>${p}</option>`).join('')}</select></label><label>Related inventory item<select name="itemId"><option value="">None</option>${items.map(i=>`<option value="${i.id}" ${i.id==e.itemId?'selected':''}>${esc(i.name)}</option>`).join('')}</select></label>${f('Purchase order','po')}${f('Supplier','supplier')}${f('Warehouse / location','wh')}${f('Project / department','project')}</div>
+<div class="row"><label>Repeat<select name="freq">${['none','daily','weekly','monthly','yearly'].map(p=>`<option ${p==e.repeat.freq?'selected':''}>${p}</option>`).join('')}</select></label>${f('Every (n)','every','number',e.repeat.every||1,'min="1"')}${f('Repeat until','until','date',e.repeat.until)}</div>
+<div class="row">${RM.map(([m,l])=>`<label style="flex-direction:row;align-items:center"><input type="checkbox" name="r${m}" ${(e.remind||[]).includes(m)?'checked':''}>${l}</label>`).join('')}${f('Custom reminder (minutes before)','rc','number',(e.remind||[]).find(m=>!RM.some(r=>r[0]==m))??'','min="0"')}</div>
+<label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(e.notes)}</textarea></label><div class="row"><button class="b" value="ok">Save</button><button class="b g" value="x" formnovalidate>Cancel</button></div></form>`;
+D.showModal();D.querySelector('form').onsubmit=async ev=>{if(ev.submitter.value!='ok')return;const fd=new FormData(ev.target),g=k=>fd.get(k)||'',st=g('start'),en=g('end');
+if(!fd.get('allDay')&&st&&en&&en<st){ev.preventDefault();alert('End time must be after start time.');return}
+const rem=RM.map(r=>r[0]).filter(m=>fd.get('r'+m)!==null);if(g('rc')!==''&&+g('rc')>=0)rem.push(+g('rc'));
+const n={...e,id:e.id||uid('EVT'),title:g('title').trim(),category:g('category'),date:g('date'),start:st,end:en,allDay:!!fd.get('allDay'),location:g('location'),person:g('person'),priority:g('priority'),itemId:g('itemId'),po:g('po'),supplier:g('supplier'),wh:g('wh'),project:g('project'),notes:g('notes'),remind:[...new Set(rem)],repeat:{freq:g('freq')||'none',every:Math.max(1,+g('every')||1),until:g('until')},done:e.done||[]};
+await put('events',n);render()}}
+const snzOpts=`<select onchange="snz('ID',this.value)"><option value="">Snooze…</option>${[5,10,15,30,60].map(m=>`<option value="${m}">${m} min</option>`).join('')}<option value="c">Custom…</option></select>`;
+async function snz(id,v){if(!v)return;const m=v=='c'?+prompt('Snooze for how many minutes?','20'):+v;if(!(m>0)){render();return}const n=notes.find(x=>x.id==id);n.state='snoozed';n.until=Date.now()+m*60000;await put('notes',n);render()}
+async function nSet(id,st){const n=notes.find(x=>x.id==id);n.state=st;await put('notes',n);render()}
+async function nAll(){for(const n of notes)if(n.state=='unread'){n.state='read';await put('notes',n)}render()}
+const nRow=n=>`<tr><td>${new Date(n.due).toLocaleString()}${n.state=='snoozed'?'<br><small>Snoozed until '+new Date(n.until).toLocaleTimeString()+'</small>':''}</td><td>${esc(n.title)}<br><small>${esc(n.date)} ${n.allDay?'(all day)':esc(n.start)}</small></td><td>${esc(n.cat)}</td><td>${esc(n.pri)}</td><td class="noprint"><button class="b g" onclick="go('cal');evForm('${n.evId}')">Open</button>${n.state=='unread'||n.state=='snoozed'?`<button class="b g" onclick="nSet('${n.id}','read')">Read</button><button class="b g" onclick="evDone('${n.evId}','${n.date}')">Complete</button>${snzOpts.replace('ID',n.id)}`:''}${n.state!='dismissed'?`<button class="b g" onclick="nSet('${n.id}','dismissed')">Dismiss</button>`:''}</td></tr>`;
+const settingsHTML=()=>`<div class="row"><label style="flex-direction:row;align-items:center"><input type="checkbox" ${S.mute?'checked':''} onchange="S.mute=this.checked;saveS()">Mute alarm sound</label><button class="b g" onclick="enN()">${S.notif&&window.Notification&&Notification.permission=='granted'?'Browser notifications on (click to turn off)':'Enable browser notifications'}</button><button class="b g" onclick="testN()">Test notification</button><label>Default reminder (min before)<input type="number" min="0" value="${S.defRem}" style="width:90px" onchange="S.defRem=Math.max(0,+this.value||0);saveS()"></label><label>First day of week<select onchange="S.ws=+this.value;saveS()"><option value="0" ${S.ws==0?'selected':''}>Sunday</option><option value="1" ${S.ws==1?'selected':''}>Monday</option></select></label><label>New event category<input style="width:150px" onchange="addCat(this.value)"></label></div><p><small>Alarms fire while this page is open in a browser tab. If the tab or browser is closed, missed reminders appear the next time you open the app. Browsers may pause timers in background tabs.</small></p>`;
+function addCat(v){v=v.trim().slice(0,60);if(v&&!allCats().includes(v)){S.cats.push(v);saveS()}ntf()}
+async function enN(){if(!window.Notification){alert('This browser does not support notifications.');return}if(Notification.permission=='denied'){alert('Notifications are blocked. Change the permission in your browser site settings.');return}
+if(Notification.permission!='granted')S.notif=(await Notification.requestPermission())=='granted';else S.notif=!S.notif;saveS();ntf()}
+function testN(){beep();alarm([{id:'test'+Date.now(),title:'Test notification',date:ld(new Date()),start:new Date().toLocaleTimeString()}])}
+function ntf(){const tabs=['Unread','Read','Upcoming','Overdue','Completed','Dismissed'],t0=ld(new Date()),os=events.flatMap(e=>occs(e,addD(t0,-90),addD(t0,14)));let body;
+if(ntab=='Overdue')body=evTable(os.filter(o=>est(o)[0]=='Overdue'));else if(ntab=='Upcoming')body=evTable(os.filter(o=>o.date>=t0&&est(o)[0]!='Completed'));
+else{const st={Unread:['unread','snoozed'],Read:['read'],Completed:['done'],Dismissed:['dismissed']}[ntab],l=notes.filter(n=>st.includes(n.state)).sort((a,b)=>b.due-a.due);body=l.length?`<div class="wrap"><table><tr><th>Due</th><th>Event</th><th>Category</th><th>Priority</th><th></th></tr>${l.map(nRow).join('')}</table></div>`:'<p>Nothing here.</p>'}
+M.innerHTML=`<h2>Notifications</h2>${settingsHTML()}<div class="row">${tabs.map(t=>`<button class="b ${t==ntab?'':'g'}" onclick="ntab='${t}';ntf()">${t}</button>`).join('')}<button class="b g" onclick="nAll()">Mark all as read</button></div>${body}`}
+function sched(){const t0=ld(new Date()),os=events.flatMap(e=>occs(e,addD(t0,-90),addD(t0,14))).filter(o=>est(o)[0]!='Completed').sort((a,b)=>a.date<b.date?-1:1),un=notes.filter(n=>n.state=='unread');
+return `<h3>Upcoming schedule &amp; reminders</h3>${un.map(n=>`<div class="k bad" style="margin-bottom:6px"><b>${esc(n.title)}</b> <small>${esc(n.date)} ${n.allDay?'':esc(n.start)} · ${esc(n.cat)}</small><div class="row noprint" style="margin:6px 0 0"><button class="b g" onclick="go('cal');evForm('${n.evId}')">Open</button><button class="b g" onclick="evDone('${n.evId}','${n.date}')">Complete</button>${snzOpts.replace('ID',n.id)}<button class="b g" onclick="nSet('${n.id}','dismissed')">Dismiss</button></div></div>`).join('')}${evTable(os.slice(0,12))}<div class="noprint"><button class="b" onclick="go('cal')">Open calendar</button> <button class="b g" onclick="evForm()">New event</button></div>`}
+function badge(){const n=notes.filter(x=>x.state=='unread').length,b=document.getElementById('bdg');b.textContent=n||'';b.style.cssText=n?'background:var(--bad);color:#fff;border-radius:9px;padding:0 6px;font-size:12px':''}
+let touched=false;addEventListener('pointerdown',()=>touched=true);addEventListener('keydown',()=>touched=true);
+function beep(){if(S.mute||!touched)return;try{const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();o.stop(c.currentTime+.4)}catch{}}
+document.body.insertAdjacentHTML('beforeend','<div id="toast" style="display:none;position:fixed;right:12px;bottom:12px;z-index:5;width:300px"></div>');
+function alarm(a){const t=document.getElementById('toast');t.innerHTML=a.slice(0,3).map(n=>`<div class="k warn" style="margin-bottom:6px;background:var(--card)"><b>${esc(n.title)}</b><br><small>${esc(n.date)} ${n.allDay?'':esc(n.start)}</small><br><button class="b" onclick="document.getElementById('toast').style.display='none';go('ntf')">Open</button></div>`).join('');t.style.display='block';setTimeout(()=>t.style.display='none',12000);beep();
+if(S.notif&&window.Notification&&Notification.permission=='granted')a.slice(0,3).forEach(n=>{try{new Notification(n.title,{body:n.date+' '+(n.allDay?'':n.start),tag:n.id})}catch{}})}
+async function chk(){await load();const now=Date.now(),t0=ld(new Date()),fresh=[];
+for(const e of events)for(const o of occs(e,addD(t0,-3),addD(t0,30))){if(e.done?.includes(o.date))continue;const st=ts(o.date,e.start,e.allDay);for(const off of e.remind||[]){const due=st-off*60000,id=o.key+'#'+off;
+if(due<=now&&due>now-3*864e5&&!notes.find(n=>n.id===id)){const n={id,evId:e.id,date:o.date,title:e.title,start:e.start||'',allDay:!!e.allDay,due,off,state:'unread',cat:e.category,pri:e.priority};await put('notes',n);notes.push(n);fresh.push(n)}}}
+for(const n of notes)if(n.state=='snoozed'&&n.until<=now){n.state='unread';await put('notes',n);fresh.push(n)}
+if(fresh.length){alarm(fresh);if(view=='dash'||view=='ntf'||view=='cal')render();else badge()}else badge()}
+function ics(){const z=s=>s.replace(/-/g,''),tt=t=>t.replace(':','')+'00',x=s=>String(s||'').replace(/\\/g,'\\\\').replace(/[,;]/g,m=>'\\'+m).replace(/\n/g,'\\n');
+const L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//JL//Inventory Report//EN'];
+for(const e of events){L.push('BEGIN:VEVENT','UID:'+e.id+'@jl-inventory','DTSTAMP:'+new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z','SUMMARY:'+x(e.title));
+if(e.allDay||!e.start)L.push('DTSTART;VALUE=DATE:'+z(e.date));else{L.push('DTSTART:'+z(e.date)+'T'+tt(e.start));if(e.end)L.push('DTEND:'+z(e.date)+'T'+tt(e.end))}
+if(e.location)L.push('LOCATION:'+x(e.location));if(e.notes)L.push('DESCRIPTION:'+x(e.notes));if(e.category)L.push('CATEGORIES:'+x(e.category));
+const r=e.repeat;if(r&&r.freq!='none')L.push('RRULE:FREQ='+r.freq.toUpperCase()+';INTERVAL='+r.every+(r.until?';UNTIL='+z(r.until):''));
+for(const m of e.remind||[])L.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+x(e.title),'TRIGGER:-PT'+m+'M','END:VALARM');L.push('END:VEVENT')}
+L.push('END:VCALENDAR');save(new Blob([L.join('\r\n')],{type:'text/calendar'}),'inventory-calendar.ics')}
+function csvOut(){const h=['Title','Category','Date','Start','End','Location','Person','Priority','Repeat','Notes'],q2=v=>{v=String(v??'');if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};
+save(new Blob([[h.join(',')].concat(events.map(e=>[e.title,e.category,e.date,e.start,e.end,e.location,e.person,e.priority,e.repeat?.freq,e.notes].map(q2).join(','))).join('\n')],{type:'text/csv'}),'calendar-events.csv')}
+async function icsIn(f){if(!f)return;if(f.size>5e6){alert('File is larger than 5 MB.');return}
+const lines=(await f.text()).replace(/\r?\n[ \t]/g,'').split(/\r?\n/),out=[],un=s=>s.replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');let c=null;
+for(const l of lines){if(l=='BEGIN:VEVENT')c={};else if(l=='END:VEVENT'){if(c&&c.title&&c.date)out.push(c);c=null}else if(c){const i=l.indexOf(':');if(i<0)continue;const k=l.slice(0,i).split(';')[0].toUpperCase(),v=l.slice(i+1);
+if(k=='SUMMARY')c.title=un(v).slice(0,200);else if(k=='LOCATION')c.location=un(v).slice(0,200);else if(k=='DESCRIPTION')c.notes=un(v).slice(0,1000);
+else if(k=='DTSTART'){const m=v.match(/^(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d))?/);if(m){c.date=m[1]+'-'+m[2]+'-'+m[3];if(m[4])c.start=m[4]+':'+m[5];else c.allDay=true}}
+else if(k=='DTEND'){const m=v.match(/T(\d\d)(\d\d)/);if(m)c.end=m[1]+':'+m[2]}
+else if(k=='RRULE'){const p=Object.fromEntries(v.split(';').map(y=>y.split('='))),fr=(p.FREQ||'').toLowerCase();if(['daily','weekly','monthly','yearly'].includes(fr)){c.repeat={freq:fr,every:+p.INTERVAL||1};const u=(p.UNTIL||'').match(/^(\d{4})(\d\d)(\d\d)/);if(u)c.repeat.until=u[1]+'-'+u[2]+'-'+u[3]}}}}
+const fresh=out.filter(c=>!events.some(e=>e.title==c.title&&e.date==c.date));
+if(!fresh.length){alert('No new events found in this file.');return}
+if(!confirm('Import '+fresh.length+' new events ('+(out.length-fresh.length)+' duplicates skipped)?\n\n'+fresh.slice(0,8).map(c=>c.date+'  '+c.title).join('\n')))return;
+for(const c of fresh)await put('events',{category:'Other',priority:'Medium',remind:[],done:[],repeat:{freq:'none',every:1},...c,id:uid('EVT')});render()}
+open().then(async()=>{await render();chk();setInterval(chk,20000)});
+</script></body></html>
